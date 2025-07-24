@@ -101,6 +101,8 @@
             transition: all 0.3s ease;
             width: 100%;
             margin-top: 10px;
+            text-decoration: none;
+            display: inline-block;
         }
 
         .btn:hover {
@@ -110,6 +112,19 @@
 
         .btn:active {
             transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            width: auto;
+            padding: 10px 20px;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            box-shadow: 0 10px 25px rgba(108, 117, 125, 0.3);
         }
 
         .message {
@@ -145,47 +160,6 @@
             border: 1px solid #b3d9ff;
         }
 
-        .admin-section {
-            margin-top: 40px;
-            padding-top: 30px;
-            border-top: 2px solid #f0f0f0;
-        }
-
-        .admin-title {
-            font-size: 1.2em;
-            color: #333;
-            margin-bottom: 20px;
-            font-weight: 600;
-        }
-
-        .csv-input {
-            width: 100%;
-            height: 150px;
-            padding: 15px;
-            border: 2px solid #e1e1e1;
-            border-radius: 12px;
-            font-family: monospace;
-            font-size: 14px;
-            resize: vertical;
-            background: #f8f9fa;
-        }
-
-        .csv-input:focus {
-            outline: none;
-            border-color: #667eea;
-            background: white;
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-            margin-top: 10px;
-        }
-
-        .btn-secondary:hover {
-            background: #5a6268;
-            box-shadow: 0 10px 25px rgba(108, 117, 125, 0.3);
-        }
-
         .loading {
             display: inline-block;
             width: 20px;
@@ -201,10 +175,17 @@
             to { transform: rotate(360deg); }
         }
 
-        .dni-count {
-            font-size: 0.9em;
+        .stats {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            font-size: 14px;
             color: #666;
-            margin-top: 10px;
+        }
+
+        .admin-link {
+            margin-top: 20px;
         }
     </style>
 </head>
@@ -226,29 +207,27 @@
 
         <div id="message" class="message"></div>
 
-        <div class="admin-section">
-            <h3 class="admin-title">Administración de DNIs</h3>
-            <textarea id="csvInput" class="csv-input" placeholder="Formato: DNI,URL&#10;12345678,https://ejemplo.com&#10;87654321,https://google.com"></textarea>
-            <button type="button" class="btn btn-secondary" onclick="loadDNIData()">
-                Cargar Datos
-            </button>
-            <div class="dni-count" id="dniCount">DNIs cargados: 0</div>
+        <div class="stats">
+            <div id="dniCount">DNIs cargados: 0</div>
+            <div>Última actualización: <span id="lastUpdate">Nunca</span></div>
+        </div>
+
+        <div class="admin-link">
+            <a href="admin.html" class="btn btn-secondary">⚙️ Administrar DNIs</a>
         </div>
     </div>
 
     <script>
-        // Base de datos de DNIs y URLs (se carga desde el textarea)
-        let dniDatabase = {};
-
-        // Datos de ejemplo
-        const defaultData = `12345678,https://www.google.com
-87654321,https://www.github.com
-11111111,https://www.stackoverflow.com
-22222222,https://www.wikipedia.org`;
-
-        // Cargar datos por defecto al inicio
-        document.getElementById('csvInput').value = defaultData;
-        loadDNIData();
+        // Cargar datos desde el almacenamiento
+        function loadDNIDatabase() {
+            const data = JSON.parse(window.sessionStorage?.getItem('dniDatabase') || '{}');
+            const lastUpdate = window.sessionStorage?.getItem('lastUpdate') || 'Nunca';
+            
+            document.getElementById('dniCount').textContent = `DNIs cargados: ${Object.keys(data).length}`;
+            document.getElementById('lastUpdate').textContent = lastUpdate;
+            
+            return data;
+        }
 
         function showMessage(text, type) {
             const messageEl = document.getElementById('message');
@@ -261,39 +240,7 @@
             }, 5000);
         }
 
-        function loadDNIData() {
-            const csvData = document.getElementById('csvInput').value.trim();
-            if (!csvData) {
-                showMessage('Por favor ingresa datos en formato CSV', 'error');
-                return;
-            }
-
-            dniDatabase = {};
-            const lines = csvData.split('\n');
-            let validCount = 0;
-
-            lines.forEach((line, index) => {
-                const trimmedLine = line.trim();
-                if (trimmedLine) {
-                    const parts = trimmedLine.split(',');
-                    if (parts.length >= 2) {
-                        const dni = parts[0].trim();
-                        const url = parts[1].trim();
-                        
-                        if (dni && url) {
-                            dniDatabase[dni] = url;
-                            validCount++;
-                        }
-                    }
-                }
-            });
-
-            document.getElementById('dniCount').textContent = `DNIs cargados: ${validCount}`;
-            showMessage(`Se cargaron ${validCount} DNIs correctamente`, 'success');
-        }
-
         function formatDNI(dni) {
-            // Remover espacios y caracteres no numéricos
             return dni.replace(/\D/g, '');
         }
 
@@ -305,6 +252,9 @@
                 return false;
             }
         }
+
+        // Inicializar la página
+        let dniDatabase = loadDNIDatabase();
 
         document.getElementById('dniForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -318,11 +268,13 @@
                 return;
             }
 
+            // Recargar datos por si se actualizaron en otra pestaña
+            dniDatabase = loadDNIDatabase();
+
             // Mostrar estado de carga
             submitBtn.innerHTML = '<span class="loading"></span>Buscando...';
             submitBtn.disabled = true;
 
-            // Simular una pequeña demora para mejor UX
             setTimeout(() => {
                 if (dniDatabase[dni]) {
                     const url = dniDatabase[dni];
@@ -330,7 +282,6 @@
                     if (validateURL(url)) {
                         showMessage(`DNI encontrado. Redirigiendo a: ${url}`, 'redirecting');
                         
-                        // Redirigir después de 2 segundos
                         setTimeout(() => {
                             window.open(url, '_blank');
                         }, 2000);
@@ -341,7 +292,6 @@
                     showMessage('DNI no encontrado en la base de datos', 'error');
                 }
 
-                // Restaurar botón
                 submitBtn.innerHTML = 'Buscar y Redirigir';
                 submitBtn.disabled = false;
                 dniInput.value = '';
@@ -354,11 +304,10 @@
             e.target.value = value;
         });
 
-        // Auto-resize del textarea
-        document.getElementById('csvInput').addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.max(150, this.scrollHeight) + 'px';
-        });
+        // Actualizar stats cada 5 segundos por si se modifican en otra pestaña
+        setInterval(() => {
+            dniDatabase = loadDNIDatabase();
+        }, 5000);
     </script>
 </body>
 </html>
