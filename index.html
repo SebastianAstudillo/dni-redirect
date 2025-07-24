@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirección por DNI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            margin: 0 auto 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            color: white;
+            font-weight: bold;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+            font-weight: 300;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .form-group {
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #e1e1e1;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+        }
+
+        .message.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .message.error {
+            background-color: #fee;
+            color: #c33;
+            border: 1px solid #fcc;
+        }
+
+        .message.success {
+            background-color: #efe;
+            color: #363;
+            border: 1px solid #cfc;
+        }
+
+        .message.redirecting {
+            background-color: #e7f3ff;
+            color: #0066cc;
+            border: 1px solid #b3d9ff;
+        }
+
+        .admin-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .admin-title {
+            font-size: 1.2em;
+            color: #333;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .csv-input {
+            width: 100%;
+            height: 150px;
+            padding: 15px;
+            border: 2px solid #e1e1e1;
+            border-radius: 12px;
+            font-family: monospace;
+            font-size: 14px;
+            resize: vertical;
+            background: #f8f9fa;
+        }
+
+        .csv-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            box-shadow: 0 10px 25px rgba(108, 117, 125, 0.3);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .dni-count {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🔍</div>
+        <h1>Redirección por DNI</h1>
+        <p class="subtitle">Ingresa tu DNI para ser redirigido</p>
+        
+        <form id="dniForm">
+            <div class="form-group">
+                <label for="dniInput">Número de DNI:</label>
+                <input type="text" id="dniInput" placeholder="Ej: 12345678" required>
+            </div>
+            <button type="submit" class="btn" id="submitBtn">
+                Buscar y Redirigir
+            </button>
+        </form>
+
+        <div id="message" class="message"></div>
+
+        <div class="admin-section">
+            <h3 class="admin-title">Administración de DNIs</h3>
+            <textarea id="csvInput" class="csv-input" placeholder="Formato: DNI,URL&#10;12345678,https://ejemplo.com&#10;87654321,https://google.com"></textarea>
+            <button type="button" class="btn btn-secondary" onclick="loadDNIData()">
+                Cargar Datos
+            </button>
+            <div class="dni-count" id="dniCount">DNIs cargados: 0</div>
+        </div>
+    </div>
+
+    <script>
+        // Base de datos de DNIs y URLs (se carga desde el textarea)
+        let dniDatabase = {};
+
+        // Datos de ejemplo
+        const defaultData = `12345678,https://www.google.com
+87654321,https://www.github.com
+11111111,https://www.stackoverflow.com
+22222222,https://www.wikipedia.org`;
+
+        // Cargar datos por defecto al inicio
+        document.getElementById('csvInput').value = defaultData;
+        loadDNIData();
+
+        function showMessage(text, type) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            messageEl.className = `message ${type}`;
+            messageEl.classList.add('show');
+            
+            setTimeout(() => {
+                messageEl.classList.remove('show');
+            }, 5000);
+        }
+
+        function loadDNIData() {
+            const csvData = document.getElementById('csvInput').value.trim();
+            if (!csvData) {
+                showMessage('Por favor ingresa datos en formato CSV', 'error');
+                return;
+            }
+
+            dniDatabase = {};
+            const lines = csvData.split('\n');
+            let validCount = 0;
+
+            lines.forEach((line, index) => {
+                const trimmedLine = line.trim();
+                if (trimmedLine) {
+                    const parts = trimmedLine.split(',');
+                    if (parts.length >= 2) {
+                        const dni = parts[0].trim();
+                        const url = parts[1].trim();
+                        
+                        if (dni && url) {
+                            dniDatabase[dni] = url;
+                            validCount++;
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('dniCount').textContent = `DNIs cargados: ${validCount}`;
+            showMessage(`Se cargaron ${validCount} DNIs correctamente`, 'success');
+        }
+
+        function formatDNI(dni) {
+            // Remover espacios y caracteres no numéricos
+            return dni.replace(/\D/g, '');
+        }
+
+        function validateURL(url) {
+            try {
+                new URL(url);
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
+        document.getElementById('dniForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const dniInput = document.getElementById('dniInput');
+            const submitBtn = document.getElementById('submitBtn');
+            const dni = formatDNI(dniInput.value);
+
+            if (!dni) {
+                showMessage('Por favor ingresa un DNI válido', 'error');
+                return;
+            }
+
+            // Mostrar estado de carga
+            submitBtn.innerHTML = '<span class="loading"></span>Buscando...';
+            submitBtn.disabled = true;
+
+            // Simular una pequeña demora para mejor UX
+            setTimeout(() => {
+                if (dniDatabase[dni]) {
+                    const url = dniDatabase[dni];
+                    
+                    if (validateURL(url)) {
+                        showMessage(`DNI encontrado. Redirigiendo a: ${url}`, 'redirecting');
+                        
+                        // Redirigir después de 2 segundos
+                        setTimeout(() => {
+                            window.open(url, '_blank');
+                        }, 2000);
+                    } else {
+                        showMessage('URL inválida para este DNI. Contacta al administrador.', 'error');
+                    }
+                } else {
+                    showMessage('DNI no encontrado en la base de datos', 'error');
+                }
+
+                // Restaurar botón
+                submitBtn.innerHTML = 'Buscar y Redirigir';
+                submitBtn.disabled = false;
+                dniInput.value = '';
+            }, 1000);
+        });
+
+        // Permitir solo números en el input del DNI
+        document.getElementById('dniInput').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            e.target.value = value;
+        });
+
+        // Auto-resize del textarea
+        document.getElementById('csvInput').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.max(150, this.scrollHeight) + 'px';
+        });
+    </script>
+</body>
+</html>
