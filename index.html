@@ -309,8 +309,7 @@
 
             try {
                 // URL de la API de GitHub para obtener el contenido del archivo
-                const apiUrl = 'https://api.github.com/repos/SebastianAstudillo/dni-redirect/contents/data/dni-database.csv';
-                    //`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`;
+                const apiUrl = 'https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}';
                 
                 const response = await fetch(apiUrl);
                 
