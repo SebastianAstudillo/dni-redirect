@@ -1,0 +1,7 @@
+# Base de datos de DNIs y URLs de redirección
+# Formato: DNI,URL
+# Ejemplo:
+12345678,https://www.google.com
+87654321,https://www.github.com
+11111111,https://www.stackoverflow.com
+22222222,https://www.wikipedia.org
