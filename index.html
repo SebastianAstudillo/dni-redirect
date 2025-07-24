@@ -114,6 +114,12 @@
             transform: translateY(-1px);
         }
 
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .btn-secondary {
             background: #6c757d;
             width: auto;
@@ -160,6 +166,12 @@
             border: 1px solid #b3d9ff;
         }
 
+        .message.loading {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
         .loading {
             display: inline-block;
             width: 20px;
@@ -187,6 +199,38 @@
         .admin-link {
             margin-top: 20px;
         }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-online {
+            background: #28a745;
+            box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+        }
+
+        .status-offline {
+            background: #dc3545;
+        }
+
+        .reload-btn {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .reload-btn:hover {
+            background: #f8f9fa;
+        }
     </style>
 </head>
 <body>
@@ -208,26 +252,31 @@
         <div id="message" class="message"></div>
 
         <div class="stats">
-            <div id="dniCount">DNIs cargados: 0</div>
-            <div>Última actualización: <span id="lastUpdate">Nunca</span></div>
+            <div>
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span id="statusText">Cargando datos...</span>
+                <button class="reload-btn" onclick="loadDatabaseFromGitHub()" title="Recargar datos">🔄</button>
+            </div>
+            <div>DNIs disponibles: <span id="dniCount">0</span></div>
+            <div>Última actualización: <span id="lastUpdate">Cargando...</span></div>
         </div>
 
         <div class="admin-link">
-            <a href="admin.html" class="btn btn-secondary">⚙️ Administrar DNIs</a>
+            <a href="admin.html" class="btn btn-secondary">⚙️ Panel de Administración</a>
         </div>
     </div>
 
     <script>
-        // Cargar datos desde el almacenamiento
-        function loadDNIDatabase() {
-            const data = JSON.parse(window.sessionStorage?.getItem('dniDatabase') || '{}');
-            const lastUpdate = window.sessionStorage?.getItem('lastUpdate') || 'Nunca';
-            
-            document.getElementById('dniCount').textContent = `DNIs cargados: ${Object.keys(data).length}`;
-            document.getElementById('lastUpdate').textContent = lastUpdate;
-            
-            return data;
-        }
+        let dniDatabase = {};
+        let isLoading = false;
+
+        // Configuración del repositorio (cambiar por tu repositorio)
+        const GITHUB_CONFIG = {
+            owner: 'tu-usuario',          // Cambiar por tu usuario de GitHub
+            repo: 'dni-redirect',         // Cambiar por el nombre de tu repositorio
+            path: 'data/dni-database.csv', // Ruta del archivo CSV en el repo
+            branch: 'main'                // Rama principal
+        };
 
         function showMessage(text, type) {
             const messageEl = document.getElementById('message');
@@ -238,6 +287,106 @@
             setTimeout(() => {
                 messageEl.classList.remove('show');
             }, 5000);
+        }
+
+        function updateStatus(online, text, count = 0, lastUpdate = 'Nunca') {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const dniCount = document.getElementById('dniCount');
+            const lastUpdateEl = document.getElementById('lastUpdate');
+
+            indicator.className = `status-indicator ${online ? 'status-online' : 'status-offline'}`;
+            statusText.textContent = text;
+            dniCount.textContent = count;
+            lastUpdateEl.textContent = lastUpdate;
+        }
+
+        async function loadDatabaseFromGitHub() {
+            if (isLoading) return;
+            
+            isLoading = true;
+            updateStatus(false, 'Cargando datos desde GitHub...', 0, 'Cargando...');
+
+            try {
+                // URL de la API de GitHub para obtener el contenido del archivo
+                const apiUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`;
+                
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('Archivo de base de datos no encontrado. Contacta al administrador.');
+                    } else if (response.status === 403) {
+                        throw new Error('Límite de API alcanzado. Intenta más tarde.');
+                    }
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                // Decodificar el contenido base64
+                const csvContent = atob(data.content);
+                
+                // Parsear CSV
+                const newDatabase = {};
+                const lines = csvContent.split('\n');
+                let validCount = 0;
+
+                lines.forEach(line => {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine && !trimmedLine.startsWith('#')) { // Ignorar comentarios
+                        const parts = trimmedLine.split(',');
+                        if (parts.length >= 2) {
+                            const dni = parts[0].trim().replace(/\D/g, '');
+                            const url = parts.slice(1).join(',').trim();
+                            
+                            if (dni && url) {
+                                newDatabase[dni] = url;
+                                validCount++;
+                            }
+                        }
+                    }
+                });
+
+                dniDatabase = newDatabase;
+                
+                // Obtener fecha de última modificación
+                const lastModified = new Date(data.commit?.committer?.date || data.updated_at || Date.now());
+                const formattedDate = lastModified.toLocaleString('es-AR');
+
+                updateStatus(true, 'Conectado a GitHub', validCount, formattedDate);
+                
+                if (validCount === 0) {
+                    showMessage('Base de datos cargada pero no contiene datos válidos', 'error');
+                } else {
+                    console.log(`Base de datos cargada: ${validCount} DNIs`);
+                }
+
+            } catch (error) {
+                console.error('Error cargando base de datos:', error);
+                updateStatus(false, 'Error de conexión', 0, 'Error');
+                showMessage(`Error al cargar datos: ${error.message}`, 'error');
+                
+                // Intentar usar datos de respaldo si existen
+                const backupData = getBackupData();
+                if (backupData && Object.keys(backupData).length > 0) {
+                    dniDatabase = backupData;
+                    updateStatus(false, 'Usando datos de respaldo', Object.keys(backupData).length, 'Datos locales');
+                    showMessage('Usando datos de respaldo. Funcionalidad limitada.', 'loading');
+                }
+            } finally {
+                isLoading = false;
+            }
+        }
+
+        function getBackupData() {
+            // Datos de respaldo en caso de error de conexión
+            return {
+                '12345678': 'https://www.google.com',
+                '87654321': 'https://www.github.com',
+                '11111111': 'https://www.stackoverflow.com',
+                '22222222': 'https://www.wikipedia.org'
+            };
         }
 
         function formatDNI(dni) {
@@ -253,9 +402,6 @@
             }
         }
 
-        // Inicializar la página
-        let dniDatabase = loadDNIDatabase();
-
         document.getElementById('dniForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
@@ -268,8 +414,11 @@
                 return;
             }
 
-            // Recargar datos por si se actualizaron en otra pestaña
-            dniDatabase = loadDNIDatabase();
+            if (Object.keys(dniDatabase).length === 0) {
+                showMessage('Base de datos no disponible. Recargando...', 'loading');
+                loadDatabaseFromGitHub();
+                return;
+            }
 
             // Mostrar estado de carga
             submitBtn.innerHTML = '<span class="loading"></span>Buscando...';
@@ -280,11 +429,11 @@
                     const url = dniDatabase[dni];
                     
                     if (validateURL(url)) {
-                        showMessage(`DNI encontrado. Redirigiendo a: ${url}`, 'redirecting');
+                        showMessage(`DNI encontrado. Redirigiendo...`, 'redirecting');
                         
                         setTimeout(() => {
                             window.open(url, '_blank');
-                        }, 2000);
+                        }, 1500);
                     } else {
                         showMessage('URL inválida para este DNI. Contacta al administrador.', 'error');
                     }
@@ -295,7 +444,7 @@
                 submitBtn.innerHTML = 'Buscar y Redirigir';
                 submitBtn.disabled = false;
                 dniInput.value = '';
-            }, 1000);
+            }, 800);
         });
 
         // Permitir solo números en el input del DNI
@@ -304,10 +453,11 @@
             e.target.value = value;
         });
 
-        // Actualizar stats cada 5 segundos por si se modifican en otra pestaña
-        setInterval(() => {
-            dniDatabase = loadDNIDatabase();
-        }, 5000);
+        // Recargar datos cada 5 minutos
+        setInterval(loadDatabaseFromGitHub, 5 * 60 * 1000);
+
+        // Cargar datos al iniciar
+        loadDatabaseFromGitHub();
     </script>
 </body>
 </html>
