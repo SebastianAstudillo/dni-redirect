@@ -261,9 +261,7 @@
             <div>Última actualización: <span id="lastUpdate">Cargando...</span></div>
         </div>
 
-        <div class="admin-link">
-            <a href="admin.html" class="btn btn-secondary">⚙️ Panel de Administración</a>
-        </div>
+
     </div>
 
     <script>
@@ -272,11 +270,15 @@
 
         // Configuración del repositorio (cambiar por tu repositorio)
         const GITHUB_CONFIG = {
-            owner: 'SebastianAstudillo',          // Cambiar por tu usuario de GitHub
+            owner: 'tu-usuario',          // Cambiar por tu usuario de GitHub
             repo: 'dni-redirect',         // Cambiar por el nombre de tu repositorio
             path: 'data/dni-database.csv', // Ruta del archivo CSV en el repo
             branch: 'main'                // Rama principal
         };
+
+        // Cache para optimizar las consultas
+        let cacheExpiry = 0;
+        const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
         function showMessage(text, type) {
             const messageEl = document.getElementById('message');
@@ -304,75 +306,146 @@
         async function loadDatabaseFromGitHub() {
             if (isLoading) return;
             
+            // Verificar cache antes de hacer petición
+            const now = Date.now();
+            if (now < cacheExpiry && Object.keys(dniDatabase).length > 0) {
+                console.log('Usando datos en cache');
+                return;
+            }
+            
             isLoading = true;
             updateStatus(false, 'Cargando datos desde GitHub...', 0, 'Cargando...');
 
             try {
                 // URL de la API de GitHub para obtener el contenido del archivo
-                const apiUrl = 'https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}';
+                const apiUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
                 
-                const response = await fetch(apiUrl);
+                console.log('Cargando desde:', apiUrl);
+                
+                const response = await fetch(apiUrl, {
+                    headers: {
+                        'Accept': 'application/vnd.github.v3+json',
+                        'User-Agent': 'DNI-Redirect-App'
+                    }
+                });
                 
                 if (!response.ok) {
+                    let errorMsg = 'Error desconocido';
+                    
                     if (response.status === 404) {
-                        throw new Error('Archivo de base de datos no encontrado. Contacta al administrador.');
+                        errorMsg = 'Archivo CSV no encontrado. Verifica la configuración del repositorio.';
                     } else if (response.status === 403) {
-                        throw new Error('Límite de API alcanzado. Intenta más tarde.');
+                        const resetTime = response.headers.get('X-RateLimit-Reset');
+                        const resetDate = resetTime ? new Date(resetTime * 1000).toLocaleTimeString() : 'desconocida';
+                        errorMsg = `Límite de API alcanzado. Se reinicia a las ${resetDate}. Intenta más tarde.`;
+                    } else if (response.status === 401) {
+                        errorMsg = 'Repositorio privado o sin acceso. Verifica que sea público.';
+                    } else {
+                        errorMsg = `Error ${response.status}: ${response.statusText}`;
                     }
-                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    
+                    throw new Error(errorMsg);
                 }
 
                 const data = await response.json();
                 
-                // Decodificar el contenido base64
-                const csvContent = atob(data.content);
+                // Verificar que el contenido esté en base64
+                if (!data.content || data.encoding !== 'base64') {
+                    throw new Error('Formato de archivo no válido');
+                }
                 
-                // Parsear CSV
+                // Decodificar el contenido base64
+                const csvContent = atob(data.content.replace(/\s/g, ''));
+                
+                // Parsear CSV con mejor manejo de errores
                 const newDatabase = {};
-                const lines = csvContent.split('\n');
+                const lines = csvContent.split(/\r?\n/); // Manejar diferentes tipos de salto de línea
                 let validCount = 0;
+                let errorLines = [];
 
-                lines.forEach(line => {
+                lines.forEach((line, index) => {
                     const trimmedLine = line.trim();
-                    if (trimmedLine && !trimmedLine.startsWith('#')) { // Ignorar comentarios
-                        const parts = trimmedLine.split(',');
-                        if (parts.length >= 2) {
-                            const dni = parts[0].trim().replace(/\D/g, '');
-                            const url = parts.slice(1).join(',').trim();
-                            
-                            if (dni && url) {
-                                newDatabase[dni] = url;
-                                validCount++;
-                            }
-                        }
+                    
+                    // Ignorar líneas vacías y comentarios
+                    if (!trimmedLine || trimmedLine.startsWith('#')) {
+                        return;
                     }
+                    
+                    // Dividir por la primera coma para manejar URLs con comas
+                    const commaIndex = trimmedLine.indexOf(',');
+                    if (commaIndex === -1) {
+                        errorLines.push(`Línea ${index + 1}: Formato inválido`);
+                        return;
+                    }
+                    
+                    const dni = trimmedLine.substring(0, commaIndex).trim().replace(/\D/g, '');
+                    const url = trimmedLine.substring(commaIndex + 1).trim();
+                    
+                    if (!dni) {
+                        errorLines.push(`Línea ${index + 1}: DNI vacío o inválido`);
+                        return;
+                    }
+                    
+                    if (!url) {
+                        errorLines.push(`Línea ${index + 1}: URL vacía`);
+                        return;
+                    }
+                    
+                    // Validar formato básico de URL
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                        errorLines.push(`Línea ${index + 1}: URL debe empezar con http:// o https://`);
+                        return;
+                    }
+                    
+                    newDatabase[dni] = url;
+                    validCount++;
                 });
 
-                dniDatabase = newDatabase;
-                
-                // Obtener fecha de última modificación
-                const lastModified = new Date(data.commit?.committer?.date || data.updated_at || Date.now());
-                const formattedDate = lastModified.toLocaleString('es-AR');
+                // Actualizar base de datos solo si hay datos válidos
+                if (validCount > 0) {
+                    dniDatabase = newDatabase;
+                    cacheExpiry = now + CACHE_DURATION; // Actualizar cache
+                    
+                    // Obtener fecha de última modificación con mejor formato
+                    let lastModified;
+                    if (data.commit && data.commit.committer && data.commit.committer.date) {
+                        lastModified = new Date(data.commit.committer.date);
+                    } else {
+                        lastModified = new Date();
+                    }
+                    
+                    const formattedDate = lastModified.toLocaleString('es-AR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
 
-                updateStatus(true, 'Conectado a GitHub', validCount, formattedDate);
-                
-                if (validCount === 0) {
-                    showMessage('Base de datos cargada pero no contiene datos válidos', 'error');
+                    updateStatus(true, 'Conectado a GitHub', validCount, formattedDate);
+                    
+                    console.log(`✅ Base de datos cargada: ${validCount} DNIs válidos`);
+                    
+                    if (errorLines.length > 0) {
+                        console.warn('Errores encontrados:', errorLines);
+                        showMessage(`Datos cargados con ${errorLines.length} advertencias. Ver consola para detalles.`, 'loading');
+                    }
                 } else {
-                    console.log(`Base de datos cargada: ${validCount} DNIs`);
+                    throw new Error('No se encontraron datos válidos en el archivo CSV');
                 }
 
             } catch (error) {
-                console.error('Error cargando base de datos:', error);
+                console.error('❌ Error cargando base de datos:', error);
                 updateStatus(false, 'Error de conexión', 0, 'Error');
-                showMessage(`Error al cargar datos: ${error.message}`, 'error');
                 
-                // Intentar usar datos de respaldo si existen
+                // Intentar usar datos de respaldo
                 const backupData = getBackupData();
                 if (backupData && Object.keys(backupData).length > 0) {
                     dniDatabase = backupData;
-                    updateStatus(false, 'Usando datos de respaldo', Object.keys(backupData).length, 'Datos locales');
-                    showMessage('Usando datos de respaldo. Funcionalidad limitada.', 'loading');
+                    updateStatus(false, 'Usando datos de emergencia', Object.keys(backupData).length, 'Datos locales');
+                    showMessage('❌ Error conectando con GitHub. Usando datos de emergencia con funcionalidad limitada.', 'error');
+                } else {
+                    showMessage(`❌ Error: ${error.message}`, 'error');
                 }
             } finally {
                 isLoading = false;
@@ -380,12 +453,11 @@
         }
 
         function getBackupData() {
-            // Datos de respaldo en caso de error de conexión
+            // Datos de emergencia en caso de error crítico de conexión
+            // Solo se usan cuando falla completamente la conexión con GitHub
             return {
-                '12345678': 'https://www.google.com',
-                '87654321': 'https://www.github.com',
-                '11111111': 'https://www.stackoverflow.com',
-                '22222222': 'https://www.wikipedia.org'
+                '00000001': 'https://www.google.com',
+                '00000002': 'https://www.github.com'
             };
         }
 
@@ -453,11 +525,16 @@
             e.target.value = value;
         });
 
-        // Recargar datos cada 5 minutos
-        setInterval(loadDatabaseFromGitHub, 5 * 60 * 1000);
+        // Recargar datos cada 10 minutos (reducido la frecuencia para evitar límites de API)
+        setInterval(loadDatabaseFromGitHub, 10 * 60 * 1000);
 
-        // Cargar datos al iniciar
-        loadDatabaseFromGitHub();
+        // Cargar datos al iniciar la página
+        document.addEventListener('DOMContentLoaded', loadDatabaseFromGitHub);
+        
+        // También cargar si no hay datos cuando se carga el script
+        if (Object.keys(dniDatabase).length === 0) {
+            loadDatabaseFromGitHub();
+        }
     </script>
 </body>
 </html>
