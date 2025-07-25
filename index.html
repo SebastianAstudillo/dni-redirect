@@ -423,7 +423,7 @@
                         minute: '2-digit'
                     });
 
-                    updateStatus(true, 'Conectado a GitHub', validCount, formattedDate);
+                    updateStatus(true, 'Conectado a la Base de Datos', validCount, formattedDate);
                     
                     console.log(`✅ Base de datos cargada: ${validCount} DNIs válidos`);
                     
@@ -432,7 +432,7 @@
                         showMessage(`Datos cargados con ${errorLines.length} advertencias. Ver consola para detalles.`, 'loading');
                     }
                 } else {
-                    throw new Error('No se encontraron datos válidos en el archivo CSV');
+                    throw new Error('No se encontraron datos válidos');
                 }
 
             } catch (error) {
