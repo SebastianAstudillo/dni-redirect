@@ -1,9 +1,8 @@
 # Base de datos de DNIs y URLs de redirección
 # Formato: DNI,URL
 # Ejemplo:
-12345678,https://www.google.com
-87654321,https://www.github.com
-11111111,https://www.stackoverflow.com
-22222222,https://www.wikipedia.org
-29549928,https://www.wikipedia.org
-35662280,https://difusoribero.com/wp-content/uploads/2021/07/meme_famoso.png
+12345678,http://www.lanacion.com.ar
+90123456,http://www.clarin.com
+17201058,https://www.youtube.com/watch?v=8EYDh45OVYg
+16000001,https://survey.valuescentre.com/survey.html?id=WthCMG_0LaN9OHGlc8torO_4V4qzs1br
+16000002,https://survey.valuescentre.com/survey.html?id=WthCMG_0LaN9OHGlc8torO_4V4qzs1br
