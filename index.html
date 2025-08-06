@@ -303,7 +303,7 @@
 
         // Configuración del repositorio (cambiar por tu repositorio)
         const GITHUB_CONFIG = {
-            owner: 'tu-usuario',          // Cambiar por tu usuario de GitHub
+            owner: 'sebastianastudillo',          // Cambiar por tu usuario de GitHub
             repo: 'dni-redirect',         // Cambiar por el nombre de tu repositorio
             path: 'data/dni-database.csv', // Ruta del archivo CSV en el repo
             branch: 'main'                // Rama principal
@@ -351,7 +351,8 @@
 
             try {
                 // URL de la API de GitHub para obtener el contenido del archivo
-                const apiUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
+                const apiUrl = 'https://api.github.com/repos/SebastianAstudillo/dni-redirect/contents/data/dni-database.csv'
+                   // 'https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}';
                 
                 console.log('Cargando desde:', apiUrl);
                 
@@ -455,7 +456,7 @@
                         minute: '2-digit'
                     });
 
-                    updateStatus(true, 'Conectado a GitHub', validCount, formattedDate);
+                    updateStatus(true, 'Conectado a la Base de Datos', validCount, formattedDate);
                     
                     console.log(`✅ Base de datos cargada: ${validCount} DNIs válidos`);
                     
@@ -464,7 +465,7 @@
                         showMessage(`Datos cargados con ${errorLines.length} advertencias. Ver consola para detalles.`, 'loading');
                     }
                 } else {
-                    throw new Error('No se encontraron datos válidos en el archivo CSV');
+                    throw new Error('No se encontraron datos válidos');
                 }
 
             } catch (error) {
@@ -476,7 +477,7 @@
                 if (backupData && Object.keys(backupData).length > 0) {
                     dniDatabase = backupData;
                     updateStatus(false, 'Usando datos de emergencia', Object.keys(backupData).length, 'Datos locales');
-                    showMessage('❌ Error conectando con GitHub. Usando datos de emergencia con funcionalidad limitada.', 'error');
+                    showMessage('❌ Error conectando con la Base de Datos. Usando datos de emergencia con funcionalidad limitada.', 'error');
                 } else {
                     showMessage(`❌ Error: ${error.message}`, 'error');
                 }
