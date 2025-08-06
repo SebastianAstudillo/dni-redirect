@@ -2,7 +2,10 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="format-detection" content="telephone=no">
     <title>Redirección por DNI</title>
     <style>
         * {
@@ -166,6 +169,36 @@
             border: 1px solid #b3d9ff;
         }
 
+        .redirect-button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .redirect-button:hover {
+            background: #0052a3;
+            transform: translateY(-1px);
+        }
+
+        .redirect-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #666;
+            border-left: 4px solid #0066cc;
+        }
+
         .message.loading {
             background-color: #fff3cd;
             color: #856404;
@@ -270,7 +303,7 @@
 
         // Configuración del repositorio (cambiar por tu repositorio)
         const GITHUB_CONFIG = {
-            owner: 'sebastianastudillo',          // Cambiar por tu usuario de GitHub
+            owner: 'tu-usuario',          // Cambiar por tu usuario de GitHub
             repo: 'dni-redirect',         // Cambiar por el nombre de tu repositorio
             path: 'data/dni-database.csv', // Ruta del archivo CSV en el repo
             branch: 'main'                // Rama principal
@@ -318,8 +351,7 @@
 
             try {
                 // URL de la API de GitHub para obtener el contenido del archivo
-                const apiUrl = 'https://api.github.com/repos/SebastianAstudillo/dni-redirect/contents/data/dni-database.csv'
-                   // 'https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}';
+                const apiUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
                 
                 console.log('Cargando desde:', apiUrl);
                 
@@ -423,7 +455,7 @@
                         minute: '2-digit'
                     });
 
-                    updateStatus(true, 'Conectado a la Base de Datos', validCount, formattedDate);
+                    updateStatus(true, 'Conectado a GitHub', validCount, formattedDate);
                     
                     console.log(`✅ Base de datos cargada: ${validCount} DNIs válidos`);
                     
@@ -432,7 +464,7 @@
                         showMessage(`Datos cargados con ${errorLines.length} advertencias. Ver consola para detalles.`, 'loading');
                     }
                 } else {
-                    throw new Error('No se encontraron datos válidos');
+                    throw new Error('No se encontraron datos válidos en el archivo CSV');
                 }
 
             } catch (error) {
@@ -475,6 +507,70 @@
             }
         }
 
+        // Función para mostrar mensaje de redirección en iOS
+        function showRedirectMessage(url) {
+            const messageEl = document.getElementById('message');
+            const domain = new URL(url).hostname;
+            
+            messageEl.innerHTML = `
+                <div>✅ <strong>DNI encontrado</strong></div>
+                <div style="margin: 10px 0;">Serás redirigido a: <strong>${domain}</strong></div>
+                <button class="redirect-button" onclick="redirectToURL('${url}')">
+                    📱 Ir al sitio
+                </button>
+                <div class="redirect-info">
+                    <strong>💡 Consejo iOS:</strong> Si no se abre automáticamente, toca el botón "Ir al sitio"
+                </div>
+            `;
+            
+            messageEl.className = 'message redirecting';
+            messageEl.classList.add('show');
+            
+            // Auto-redirect después de 3 segundos
+            setTimeout(() => {
+                redirectToURL(url);
+            }, 3000);
+        }
+        function redirectToURL(url) {
+            // Detectar si es iOS
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            
+            // Detectar si está en Safari iOS
+            const isSafariIOS = isIOS && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS|OPiOS|mercury/.test(navigator.userAgent);
+            
+            try {
+                if (isIOS) {
+                    // Para iOS, usar window.location para mejor compatibilidad
+                    if (isSafariIOS) {
+                        // Safari iOS: usar location.href
+                        window.location.href = url;
+                    } else {
+                        // Otros browsers en iOS: intentar window.open primero
+                        const newWindow = window.open(url, '_blank');
+                        if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
+                            // Si falla window.open, usar location.href
+                            window.location.href = url;
+                        }
+                    }
+                } else {
+                    // Para otros dispositivos, usar window.open
+                    const newWindow = window.open(url, '_blank');
+                    if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
+                        // Si falla window.open, usar location.href como fallback
+                        window.location.href = url;
+                    }
+                }
+                
+                // Log para debugging
+                console.log(`Redirigiendo a: ${url} | iOS: ${isIOS} | Safari: ${isSafariIOS}`);
+                
+            } catch (error) {
+                console.error('Error en redirección:', error);
+                // Fallback final
+                window.location.href = url;
+            }
+        }
+
         document.getElementById('dniForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
@@ -502,11 +598,17 @@
                     const url = dniDatabase[dni];
                     
                     if (validateURL(url)) {
-                        showMessage(`DNI encontrado. Redirigiendo...`, 'redirecting');
+                        // Detectar iOS para mostrar mensaje personalizado
+                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
                         
-                        setTimeout(() => {
-                            window.open(url, '_blank');
-                        }, 1500);
+                        if (isIOS) {
+                            showRedirectMessage(url);
+                        } else {
+                            showMessage(`DNI encontrado. Redirigiendo...`, 'redirecting');
+                            setTimeout(() => {
+                                redirectToURL(url);
+                            }, 1500);
+                        }
                     } else {
                         showMessage('URL inválida para este DNI. Contacta al administrador.', 'error');
                     }
